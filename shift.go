@@ -27,7 +27,7 @@ func enumToString(subType SubtitleType) string {
 	}
 }
 
-func processFile(name string, subType SubtitleType, delta float32) error {
+func shiftSubtitleFile(name string, subType SubtitleType, startDelta, endDelta float32) error {
 	in, err := os.Open(name)
 	if err != nil {
 		return err
@@ -42,7 +42,7 @@ func processFile(name string, subType SubtitleType, delta float32) error {
 	}
 	defer out.Close()
 
-	if err := shiftLines(in, out, subType, delta); err != nil {
+	if err := shiftLines(in, out, subType, startDelta, endDelta); err != nil {
 		return err
 	}
 
@@ -53,7 +53,7 @@ func processFile(name string, subType SubtitleType, delta float32) error {
 	return os.Rename(tempName, name)
 }
 
-func shiftLines(in *os.File, out *os.File, subType SubtitleType, delta float32) error {
+func shiftLines(in *os.File, out *os.File, subType SubtitleType, startDelta, endDelta float32) error {
 	scanner := bufio.NewScanner(in)
 	writer := bufio.NewWriter(out)
 
@@ -64,9 +64,9 @@ func shiftLines(in *os.File, out *os.File, subType SubtitleType, delta float32) 
 
 		switch subType {
 		case ASS:
-			err = processASSLine(line, writer, delta)
+			err = processASSLine(line, writer, startDelta, endDelta)
 		case SRT:
-			err = processSRTLine(line, writer, delta)
+			err = processSRTLine(line, writer, startDelta, endDelta)
 		default:
 			return errors.New("unsupported extension")
 		}
@@ -101,7 +101,7 @@ func readShiftAmount() (float32, error) {
 }
 
 func shift(subType SubtitleType) error {
-	deltaSeconds, err := readShiftAmount()
+	delta, err := readShiftAmount()
 	if err != nil {
 		return err
 	}
@@ -112,7 +112,7 @@ func shift(subType SubtitleType) error {
 	}
 
 	for _, file := range files {
-		if err := processFile(file, subType, deltaSeconds); err != nil {
+		if err := shiftSubtitleFile(file, subType, delta, delta); err != nil {
 			return err
 		}
 	}

@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func processASSLine(line string, writer *bufio.Writer, delta float32) error {
+func processASSLine(line string, writer *bufio.Writer, startDelta, endDelta float32) error {
 	if !strings.HasPrefix(line, "Dialogue:") {
 		fmt.Fprintln(writer, line)
 		return nil
@@ -20,12 +20,12 @@ func processASSLine(line string, writer *bufio.Writer, delta float32) error {
 		return nil
 	}
 
-	newStart, err := shiftTime(parts[1], delta, ASS)
+	newStart, err := shiftTime(parts[1], startDelta, ASS)
 	if err != nil {
 		return err
 	}
 
-	newEnd, err := shiftTime(parts[2], delta, ASS)
+	newEnd, err := shiftTime(parts[2], endDelta, ASS)
 	if err != nil {
 		return err
 	}

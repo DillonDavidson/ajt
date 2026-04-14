@@ -18,7 +18,6 @@ This CLI combines several tasks I frequently do into one convenient tool.
 
 - [alass](https://github.com/kaegi/alass) – for synchronizing subtitle files
 - [FFmpeg](https://ffmpeg.org/) – extract subtitles
-- [impd](https://github.com/Ajatt-Tools/impd) – turn MKV files into OGG files for passive immersion
 - [mkvmerge](https://www.matroska.org/downloads/mkvtoolnix.html) – analyze and modify MKV files
 
 ## Building

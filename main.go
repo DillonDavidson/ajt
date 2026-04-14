@@ -39,12 +39,14 @@ func main() {
 		}
 
 		err = rename(os.Args[2])
-	case "impd":
-		err = impd()
 	case "sub-drop":
 		err = subDrop()
 	case "audio-drop":
 		err = audioDrop()
+	case "condense":
+		err = condense()
+	case "impd":
+		err = impd()
 	default:
 		printUsage()
 	}
