@@ -6,21 +6,20 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 )
 
 const (
-	SUBTITLE_FILE string  = "/tmp/subs.srt"
-	PAD           float32 = 0.2
+	PAD float32 = 0.2
 )
 
 type Segment struct {
 	Start, End float64
 }
 
-// To-Do: Parallelize
-func condense() error {
-	var failed []string
+func condenseCmd() error {
 	mkvFiles, err := findFiles("mkv")
 	if err != nil {
 		return err
@@ -30,43 +29,52 @@ func condense() error {
 		return fmt.Errorf("creating output directory: %w", err)
 	}
 
+	sem := make(chan struct{}, runtime.NumCPU())
+	var wg sync.WaitGroup
+
 	for _, file := range mkvFiles {
-		fmt.Println("Processing ", file)
-		clearTempFile(SUBTITLE_FILE)
-
-		if err := extractInternalSubs(file); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: skipping %q: %v\n", file, err)
-			failed = append(failed, file)
-			continue
-		}
-
-		if err := shiftSubtitleFile(SUBTITLE_FILE, SRT, -PAD, PAD); err != nil {
-			return err
-		}
-
-		segments, err := srtToSegments()
-		if err != nil {
-			return err
-		}
-
-		baseName := strings.TrimSuffix(filepath.Base(file), ".mkv") + ".ogg"
-		outputFile := filepath.Join("audio", baseName)
-		if err := runFFmpeg(file, outputFile, buildFilterGraph(segments)); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: skipping %q: %v\n", file, err)
-			failed = append(failed, file)
-			continue
-		}
+		wg.Go(func() {
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			condense(file)
+		})
 	}
 
-	if len(failed) > 0 {
-		fmt.Fprintf(os.Stderr, "\n%d file(s) failed:\n", len(failed))
-		for _, f := range failed {
-			fmt.Fprintf(os.Stderr, "  %s\n", f)
-		}
-		return fmt.Errorf("%d file(s) failed condensing", len(failed))
-	}
+	wg.Wait()
 
 	return nil
+}
+
+func condense(file string) {
+	fmt.Println("Processing ", file)
+
+	tempFile := "/tmp/" + file + ".srt"
+	clearTempFile(tempFile)
+
+	if err := extractInternalSubs(file, tempFile); err != nil {
+		fmt.Printf("warning: skipping %q: %v\n", file, err)
+		return
+	}
+
+	if err := shiftSubtitleFile(tempFile, SRT, -PAD, PAD); err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	segments, err := srtToSegments(tempFile)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	baseName := strings.TrimSuffix(filepath.Base(file), ".mkv") + ".ogg"
+	outputFile := filepath.Join("audio", baseName)
+	if err := runFFmpeg(file, outputFile, buildFilterGraph(segments)); err != nil {
+		fmt.Printf("warning: skipping %q: %v\n", file, err)
+		return
+	}
+
+	clearTempFile(tempFile)
 }
 
 func clearTempFile(file string) {
@@ -75,15 +83,15 @@ func clearTempFile(file string) {
 	}
 }
 
-func extractInternalSubs(file string) error {
-	cmd := exec.Command("ffmpeg", "-y", "-i", file, "-map", "0:s:0", SUBTITLE_FILE)
+func extractInternalSubs(file, subFile string) error {
+	cmd := exec.Command("ffmpeg", "-y", "-i", file, "-map", "0:s:0", subFile)
 	cmd.Stdout = io.Discard
 	cmd.Stderr = io.Discard
 	return cmd.Run()
 }
 
-func srtToSegments() ([]Segment, error) {
-	data, err := os.ReadFile(SUBTITLE_FILE)
+func srtToSegments(subFile string) ([]Segment, error) {
+	data, err := os.ReadFile(subFile)
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +153,6 @@ func runFFmpeg(input, output, filter string) error {
 		"-acodec", "libopus",
 		output,
 	)
-	fmt.Println(cmd)
 	cmd.Stdout = io.Discard
 	cmd.Stderr = io.Discard
 	return cmd.Run()

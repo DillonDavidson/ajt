@@ -16,6 +16,41 @@ const (
 	ASS
 )
 
+func shiftCmd(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("expected a subtitle file extension")
+	}
+
+	switch args[0] {
+	case "srt":
+		return shift(SRT)
+	case "ass":
+		return shift(ASS)
+	default:
+		return fmt.Errorf("'%s' is not a valid extension", os.Args[2])
+	}
+}
+
+func shift(subType SubtitleType) error {
+	delta, err := readShiftAmount()
+	if err != nil {
+		return err
+	}
+
+	files, err := findFiles(enumToString(subType))
+	if err != nil {
+		return err
+	}
+
+	for _, file := range files {
+		if err := shiftSubtitleFile(file, subType, delta, delta); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func enumToString(subType SubtitleType) string {
 	switch subType {
 	case ASS:
@@ -83,7 +118,7 @@ func shiftLines(in *os.File, out *os.File, subType SubtitleType, startDelta, end
 func readShiftAmount() (float32, error) {
 	reader := bufio.NewReader(os.Stdin)
 
-	fmt.Print("Enter the number of seconds to shift: ")
+	fmt.Print("enter the number of seconds to shift: ")
 
 	text, err := reader.ReadString('\n')
 	if err != nil {
@@ -98,24 +133,4 @@ func readShiftAmount() (float32, error) {
 	}
 
 	return float32(val), nil
-}
-
-func shift(subType SubtitleType) error {
-	delta, err := readShiftAmount()
-	if err != nil {
-		return err
-	}
-
-	files, err := findFiles(enumToString(subType))
-	if err != nil {
-		return err
-	}
-
-	for _, file := range files {
-		if err := shiftSubtitleFile(file, subType, delta, delta); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }

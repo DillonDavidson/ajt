@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
 )
@@ -16,37 +15,21 @@ func main() {
 
 	switch os.Args[1] {
 	case "sync":
-		err = sea()
+		err = syncCmd(os.Args[2:])
 	case "shift":
-		if len(os.Args) < 3 {
-			fmt.Println("Error: expected a subtitle file extension")
-			os.Exit(1)
-		}
-
-		switch os.Args[2] {
-		case "srt":
-			err = shift(SRT)
-		case "ass":
-			err = shift(ASS)
-		default:
-			fmt.Printf("Error: '%s' is not a valid extension", os.Args[2])
-			os.Exit(1)
-		}
+		err = shiftCmd(os.Args[2:])
 	case "rename":
-		if len(os.Args) < 3 {
-			fmt.Println("Error: expected a file extension")
-			os.Exit(1)
-		}
-
-		err = rename(os.Args[2])
+		err = renameCmd(os.Args[2:])
 	case "sub-drop":
-		err = subDrop()
+		err = subDropCmd()
 	case "audio-drop":
-		err = audioDrop()
+		err = audioDropCmd()
 	case "condense":
-		err = condense()
+		err = condenseCmd()
 	case "impd":
 		err = impd()
+	case "help":
+		fallthrough
 	default:
 		printUsage()
 	}
