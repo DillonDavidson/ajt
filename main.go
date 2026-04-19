@@ -11,7 +11,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	var err error
+	var err error = nil
 
 	switch os.Args[1] {
 	case "sync":
@@ -26,8 +26,6 @@ func main() {
 		err = audioDropCmd()
 	case "condense":
 		err = condenseCmd()
-	case "impd":
-		err = impd()
 	case "help":
 		fallthrough
 	default:

@@ -26,6 +26,7 @@ This CLI combines several tasks I frequently do into one convenient tool.
 git clone https://github.com/DillonDavidson/ajt
 cd ajt
 go install
+ajt -help
 ```
 
 ## License
