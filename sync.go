@@ -27,8 +27,21 @@ func syncCmd(args []string) error {
 	}
 
 	mkvs := findAllMkvs(paths, *recursive)
+	if len(mkvs) == 0 {
+		return errors.New("no mkv files found")
+	}
 
-	return synchronize(mkvs, *dryRun, *verbose)
+	if err := checkBatchSafety(mkvs); err != nil {
+		return err
+	}
+
+	sample := mkvs[0]
+	_, _, relativeIndex, err := selectTrack(sample, "subtitle", "eng")
+	if err != nil {
+		return err
+	}
+
+	return synchronize(mkvs, relativeIndex, *dryRun, *verbose)
 }
 
 func findAllMkvs(paths []string, recurse bool) []string {
@@ -70,7 +83,7 @@ func findAllMkvs(paths []string, recurse bool) []string {
 	return mkvs
 }
 
-func synchronize(files []string, dryRun, verbose bool) error {
+func synchronize(files []string, trackNumber int, dryRun, verbose bool) error {
 	if !dryRun {
 		_, err := exec.LookPath("ffprobe")
 		if err != nil {
@@ -88,7 +101,7 @@ func synchronize(files []string, dryRun, verbose bool) error {
 	}
 
 	for _, file := range files {
-		if err := processFile(file, dryRun, verbose); err != nil {
+		if err := processFile(file, trackNumber, dryRun, verbose); err != nil {
 			log.Printf("skipping %s: %v", file, err)
 		}
 	}
@@ -96,10 +109,10 @@ func synchronize(files []string, dryRun, verbose bool) error {
 	return nil
 }
 
-func processFile(file string, dryRun, verbose bool) error {
+func processFile(file string, trackNumber int, dryRun, verbose bool) error {
 	fmt.Printf("extracting subtitles from %s...\n", file)
 
-	subExtension, err := probeSubsCodec(file, dryRun)
+	subExtension, err := probeSubsCodec(file, trackNumber, dryRun)
 	if err != nil {
 		return fmt.Errorf("skipping %s: ffprobe failed: %v", file, err)
 	}
@@ -111,7 +124,7 @@ func processFile(file string, dryRun, verbose bool) error {
 
 	baseName := string(baseNameOrig[:len(baseNameOrig)-4])
 
-	if err := extractSubs(file, internalSubs, dryRun); err != nil {
+	if err := extractSubs(file, internalSubs, trackNumber, dryRun); err != nil {
 		return err
 	}
 
@@ -130,18 +143,20 @@ func processFile(file string, dryRun, verbose bool) error {
 	return nil
 }
 
-func extractSubs(file, internalSubs string, dryRun bool) error {
+func extractSubs(file, internalSubs string, trackNumber int, dryRun bool) error {
 	if fileExists(internalSubs) && !dryRun {
 		log.Printf("extracted sub %s already exists, skipping extraction.", internalSubs)
 		return nil
 	}
 
+	mapArg := fmt.Sprintf("0:s:%d", trackNumber)
+
 	if dryRun {
-		fmt.Printf("ffmpeg -y -i %s -map 0:s:0 %s\n", file, internalSubs)
+		fmt.Printf("ffmpeg -y -i %s -map %s %s\n", file, mapArg, internalSubs)
 		return nil
 	}
 
-	cmd := exec.Command("ffmpeg", "-y", "-i", file, "-map", "0:s:0", internalSubs)
+	cmd := exec.Command("ffmpeg", "-y", "-i", file, "-map", mapArg, internalSubs)
 	if err := cmd.Run(); err != nil {
 		log.Printf("failed to extract subtitle for %s: %v", file, err)
 		return nil
@@ -203,22 +218,18 @@ func align(externalSubs string, baseName string, dryRun, verbose bool) error {
 }
 
 // mostly helper functions and stuff
-
-var FFprobeSubsCodecArgs = []string{
-	"-v", "error",
-	"-select_streams", "s:0",
-	"-show_entries", "stream=codec_name",
-	"-of", "csv=p=0",
-}
-
-func probeSubsCodec(fileName string, dryRun bool) (string, error) {
-	args := make([]string, 0, len(FFprobeSubsCodecArgs)+1)
-	args = append(args, FFprobeSubsCodecArgs...)
-	args = append(args, fileName)
+func probeSubsCodec(fileName string, trackNumber int, dryRun bool) (string, error) {
+	args := []string{
+		"-v", "error",
+		"-select_streams", fmt.Sprintf("s:%d", trackNumber),
+		"-show_entries", "stream=codec_name",
+		"-of", "csv=p=0",
+		fileName,
+	}
 
 	if dryRun {
 		fmt.Printf("ffprobe ")
-		for _, arg := range FFprobeSubsCodecArgs {
+		for _, arg := range args {
 			fmt.Printf(" %s", arg)
 		}
 		fmt.Printf("\n")

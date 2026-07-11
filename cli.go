@@ -26,5 +26,6 @@ Options:
 		for all mkv files with matching srt/ass file names, sync the external subtitles with the internal
 	help
 		print this message
-`, os.Args[0])
+`, os.Args[0],
+	)
 }
